@@ -586,7 +586,14 @@
         }
 
         row.innerHTML = `
-            <div class="row-num">${index + 1}</div>
+            <div class="row-num">
+                <span class="row-num-text">${index + 1}</span>
+                <button class="row-delete-btn" data-index="${index}" title="Xóa câu này">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
             <div class="row-en">${escapeHtml(sentence)}</div>
             <div class="row-vi">
                 <textarea
@@ -597,7 +604,64 @@
             </div>
         `;
 
+        // Wire up delete button
+        row.querySelector('.row-delete-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteSentence(index);
+        });
+
         els.tableBody.appendChild(row);
+    }
+
+    // ===== Delete Sentence =====
+    function deleteSentence(globalIndex) {
+        const isSectioned = sentences.length > 0 && typeof sentences[0] === 'object';
+        
+        if (isSectioned) {
+            // Find which section & local index this globalIndex maps to
+            let counter = 0;
+            for (const section of sentences) {
+                for (let i = 0; i < section.sentences.length; i++) {
+                    if (counter === globalIndex) {
+                        section.sentences.splice(i, 1);
+                        break;
+                    }
+                    counter++;
+                }
+                if (counter > globalIndex) break;
+            }
+            // Remove empty sections
+            sentences = sentences.filter(sec => sec.sentences.length > 0 || sec.label === null);
+        } else {
+            sentences.splice(globalIndex, 1);
+        }
+
+        // Remap translations: shift all indices above deleted one down by 1
+        const newTranslations = {};
+        Object.keys(translations).forEach(k => {
+            const idx = parseInt(k);
+            if (idx < globalIndex) {
+                newTranslations[idx] = translations[idx];
+            } else if (idx > globalIndex) {
+                newTranslations[idx - 1] = translations[idx];
+            }
+            // idx === globalIndex is dropped
+        });
+        translations = newTranslations;
+
+        // Animate out then re-render
+        const row = $(`#row-${globalIndex}`);
+        if (row) {
+            row.style.transition = 'opacity 0.2s, transform 0.2s';
+            row.style.opacity = '0';
+            row.style.transform = 'translateX(-8px)';
+            setTimeout(() => renderTable(), 200);
+        } else {
+            renderTable();
+        }
+
+        // Auto-save
+        if (currentSessionId) saveSession(currentSessionId, true);
     }
 
     function escapeHtml(text) {
