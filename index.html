@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PaperLens — Nghiên cứu Bài báo Khoa học</title>
+    <meta name="description" content="Công cụ hỗ trợ nghiên cứu bài báo khoa học bằng cách dịch từng câu Anh-Việt">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Ambient background -->
+    <div class="ambient-bg">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                        <rect x="2" y="4" width="20" height="26" rx="3" stroke="currentColor" stroke-width="2"/>
+                        <rect x="10" y="2" width="20" height="26" rx="3" fill="var(--accent)" opacity="0.3" stroke="currentColor" stroke-width="2"/>
+                        <line x1="14" y1="9" x2="26" y2="9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <line x1="14" y1="14" x2="24" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <line x1="14" y1="19" x2="22" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1>PaperLens</h1>
+                    <p class="tagline">Nghiên cứu bài báo khoa học • Luyện dịch Anh-Việt</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="btn-icon" id="themeToggle" title="Chuyển đổi giao diện">
+                    <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                    </svg>
+                    <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Input Section -->
+        <section class="input-section" id="inputSection">
+            <div class="input-card glass-card">
+                <div class="input-tabs">
+                    <button class="tab active" data-tab="text" id="tabText">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                        Dán nội dung
+                    </button>
+                    <button class="tab" data-tab="url" id="tabUrl">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                        Dán link
+                    </button>
+                    <button class="tab" data-tab="pdf" id="tabPdf">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15v-2h2a2 2 0 1 0 0-4H9v6"/></svg>
+                        Tải PDF
+                    </button>
+                </div>
+
+                <div class="tab-content active" id="contentText">
+                    <textarea id="articleText" placeholder="Dán nội dung bài báo khoa học tiếng Anh vào đây...&#10;&#10;Ví dụ: The global burden of cardiovascular disease continues to rise. Risk factors include high blood pressure, smoking, and poor diet. Prevention strategies are essential for reducing mortality rates." rows="8"></textarea>
+                </div>
+
+                <div class="tab-content" id="contentUrl">
+                    <div class="url-input-wrapper">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <input type="url" id="articleUrl" placeholder="https://pubmed.ncbi.nlm.nih.gov/... hoặc link PDF bài báo">
+                    </div>
+                    <p class="url-note">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                        Hỗ trợ cả link HTML và link PDF. Nếu không tải được, hãy tải PDF về máy rồi dùng tab "Tải PDF".
+                    </p>
+                </div>
+
+                <div class="tab-content" id="contentPdf">
+                    <div class="pdf-upload-area" id="pdfDropZone">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="12" y1="18" x2="12" y2="12"/>
+                            <polyline points="9 15 12 12 15 15"/>
+                        </svg>
+                        <p class="upload-title">Kéo thả file PDF vào đây</p>
+                        <p class="upload-subtitle">hoặc</p>
+                        <label class="upload-btn" for="pdfFileInput">
+                            Chọn file PDF
+                        </label>
+                        <input type="file" id="pdfFileInput" accept=".pdf,application/pdf" style="display:none">
+                        <p class="upload-filename" id="pdfFileName"></p>
+                    </div>
+                </div>
+
+                <div class="input-actions">
+                    <button class="btn-primary" id="processBtn">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg>
+                        Phân tích bài báo
+                    </button>
+                    <button class="btn-secondary" id="clearBtn">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        Xóa
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Loading -->
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="loading-spinner">
+                <div class="spinner-ring"></div>
+                <p>Đang phân tích bài báo...</p>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <section class="results-section" id="resultsSection" style="display:none">
+            <!-- Stats bar -->
+            <div class="stats-bar glass-card">
+                <div class="stat">
+                    <span class="stat-value" id="totalSentences">0</span>
+                    <span class="stat-label">Tổng câu</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value" id="translatedCount">0</span>
+                    <span class="stat-label">Đã dịch</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value" id="progressPercent">0%</span>
+                    <span class="stat-label">Tiến độ</span>
+                </div>
+                <div class="stat-actions">
+                    <button class="btn-small" id="exportBtn" title="Xuất TXT">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        TXT
+                    </button>
+                    <button class="btn-small btn-notion" id="exportNotionBtn" title="Xuất Markdown cho Notion">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+                        Notion
+                    </button>
+                    <button class="btn-small btn-gdocs" id="exportGDocsBtn" title="Xuất cho Google Docs">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                        Google Docs
+                    </button>
+                    <button class="btn-small" id="saveBtn" title="Lưu tiến độ">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                        Lưu
+                    </button>
+                    <button class="btn-small btn-back" id="backBtn" title="Quay lại">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                        Bài mới
+                    </button>
+                </div>
+            </div>
+
+            <!-- Progress bar -->
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+
+            <!-- Translation table -->
+            <div class="translation-table glass-card">
+                <div class="table-header">
+                    <div class="col-header col-num">#</div>
+                    <div class="col-header col-en">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                        English
+                    </div>
+                    <div class="col-header col-vi">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20l9-5-9-5-9 5 9 5z"/><path d="M12 12l9-5-9-5-9 5 9 5z"/></svg>
+                        Tiếng Việt (Bản dịch của bạn)
+                    </div>
+                </div>
+                <div class="table-body" id="tableBody">
+                    <!-- Rows will be generated dynamically -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Saved sessions section -->
+        <section class="saved-section" id="savedSection">
+            <div class="saved-header" id="savedToggle">
+                <h3>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    Phiên đã lưu
+                </h3>
+                <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="saved-list" id="savedList" style="display:none">
+                <!-- Saved sessions will appear here -->
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>PaperLens © 2026 — Công cụ hỗ trợ nghiên cứu bài báo khoa học</p>
+        </footer>
+    </div>
+
+    <!-- PDF.js for extracting text from PDF files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Configure pdf.js worker
+        if (window.pdfjsLib) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+    </script>
+    <script src="app.js"></script>
+</body>
+</html>
