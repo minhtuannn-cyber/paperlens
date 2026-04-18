@@ -885,43 +885,46 @@
     let notionSelectedPageName = '';
 
     // CORS proxies that support POST + custom headers
-    const NOTION_PROXIES = [
-        (path) => `https://corsproxy.io/?url=${encodeURIComponent('https://api.notion.com/v1' + path)}`,
-        (path) => `https://proxy.cors.sh/https://api.notion.com/v1${path}`,
-        (path) => `https://api.allorigins.win/raw?url=${encodeURIComponent('https://api.notion.com/v1' + path)}`,
-    ];
-
+    // Primary: our own Vercel serverless function (no CORS)
+    // Fallback: public CORS proxies
     async function notionFetch(path, options = {}) {
-        const fetchOptions = {
-            ...options,
-            headers: {
-                'Authorization': `Bearer ${notionToken}`,
-                'Notion-Version': '2022-06-28',
-                'Content-Type': 'application/json',
-                ...(options.headers || {}),
-            },
-        };
+        const pathEncoded = encodeURIComponent(path.replace(/^\//, ''));
 
-        let lastError = null;
-        for (const proxyFn of NOTION_PROXIES) {
-            const url = proxyFn(path);
+        const attempts = [
+            // 1. Own Vercel proxy (best — no third party)
+            async () => {
+                const r = await fetch(`/api/notion?p=${pathEncoded}`, {
+                    method: options.method || 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-notion-token': notionToken,
+                    },
+                    body: options.body,
+                });
+                if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message || `HTTP ${r.status}`); }
+                return r.json();
+            },
+            // 2. corsproxy.io fallback
+            async () => {
+                const r = await fetch(`https://corsproxy.io/?url=${encodeURIComponent('https://api.notion.com/v1' + path)}`, {
+                    ...options,
+                    headers: { 'Authorization': `Bearer ${notionToken}`, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json', ...(options.headers || {}) },
+                });
+                if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message || `HTTP ${r.status}`); }
+                return r.json();
+            },
+        ];
+
+        let lastErr = null;
+        for (const attempt of attempts) {
             try {
-                const resp = await fetch(url, fetchOptions);
-                if (!resp.ok) {
-                    const err = await resp.json().catch(() => ({}));
-                    throw new Error(err.message || `HTTP ${resp.status}`);
-                }
-                return await resp.json();
+                return await attempt();
             } catch (err) {
-                lastError = err;
-                // If it's an API error (not a network error), don't retry
-                if (err.message && !err.message.includes('fetch') && !err.message.includes('network') && !err.message.includes('Failed')) {
-                    throw err;
-                }
-                continue;
+                lastErr = err;
+                if (err.message && !err.message.includes('fetch') && !err.message.includes('network') && !err.message.includes('Failed') && !err.message.includes('Load')) throw err;
             }
         }
-        throw lastError || new Error('Không thể kết nối Notion API. Hãy thử lại sau.');
+        throw lastErr || new Error('Không thể kết nối Notion API.');
     }
 
     // Open modal
@@ -1704,34 +1707,32 @@
     }
 
     async function taskNotionFetch(path, options = {}) {
-        // Reuse same proxy logic as main Notion fetch but with task token
-        const tkn = taskNotionToken;
-        const proxies = [
-            p => `https://corsproxy.io/?url=${encodeURIComponent('https://api.notion.com/v1' + p)}`,
-            p => `https://proxy.cors.sh/https://api.notion.com/v1${p}`,
-            p => `https://api.allorigins.win/raw?url=${encodeURIComponent('https://api.notion.com/v1' + p)}`,
-        ];
-        const fetchOpts = {
-            ...options,
-            headers: {
-                'Authorization': `Bearer ${tkn}`,
-                'Notion-Version': '2022-06-28',
-                'Content-Type': 'application/json',
-                ...(options.headers || {}),
+        const pathEncoded = encodeURIComponent(path.replace(/^\//, ''));
+        const attempts = [
+            async () => {
+                const r = await fetch(`/api/notion?p=${pathEncoded}`, {
+                    method: options.method || 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-notion-token': taskNotionToken },
+                    body: options.body,
+                });
+                if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message || `HTTP ${r.status}`); }
+                return r.json();
             },
-        };
+            async () => {
+                const r = await fetch(`https://corsproxy.io/?url=${encodeURIComponent('https://api.notion.com/v1' + path)}`, {
+                    ...options,
+                    headers: { 'Authorization': `Bearer ${taskNotionToken}`, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json', ...(options.headers || {}) },
+                });
+                if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message || `HTTP ${r.status}`); }
+                return r.json();
+            },
+        ];
         let lastErr = null;
-        for (const fn of proxies) {
-            try {
-                const r = await fetch(fn(path), fetchOpts);
-                if (!r.ok) {
-                    const e = await r.json().catch(() => ({}));
-                    throw new Error(e.message || `HTTP ${r.status}`);
-                }
-                return await r.json();
-            } catch (e) {
+        for (const fn of attempts) {
+            try { return await fn(); }
+            catch (e) {
                 lastErr = e;
-                if (e.message && !['fetch','network','Failed'].some(w => e.message.includes(w))) throw e;
+                if (e.message && !['fetch','network','Failed','Load'].some(w => e.message.includes(w))) throw e;
             }
         }
         throw lastErr || new Error('Không thể kết nối Notion API');
