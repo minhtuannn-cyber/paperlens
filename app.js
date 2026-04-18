@@ -875,52 +875,347 @@
         showToast('Đã xuất file TXT!', 'success');
     }
 
-    // ===== Export: Notion (Markdown) =====
-    function exportToNotion() {
+    // ===== Export: Notion (Direct API Integration) =====
+
+    // --- Notion modal state ---
+    let notionToken = '';
+    let notionPages = [];
+    let notionFilteredPages = [];
+    let notionSelectedPageId = '';
+    let notionSelectedPageName = '';
+
+    const NOTION_PROXY = 'https://api.allorigins.win/raw?url=';
+
+    function encodeNotionUrl(path) {
+        return NOTION_PROXY + encodeURIComponent('https://api.notion.com/v1' + path);
+    }
+
+    async function notionFetch(path, options = {}) {
+        const url = encodeNotionUrl(path);
+        const resp = await fetch(url, {
+            ...options,
+            headers: {
+                'Authorization': `Bearer ${notionToken}`,
+                'Notion-Version': '2022-06-28',
+                'Content-Type': 'application/json',
+                ...(options.headers || {}),
+            },
+        });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.message || `HTTP ${resp.status}`);
+        }
+        return resp.json();
+    }
+
+    // Open modal
+    function openNotionModal() {
         const allSents = getAllSentences();
-        if (allSents.length === 0) return;
-
-        const isSectioned = sentences.length > 0 && typeof sentences[0] === 'object';
-        const date = new Date().toLocaleDateString('vi-VN');
-        let md = `# 📄 PaperLens — Bản dịch bài báo\n`;
-        md += `> Xuất ngày ${date} • ${allSents.length} câu\n\n`;
-        md += `---\n\n`;
-
-        if (isSectioned) {
-            let globalIdx = 0;
-            sentences.forEach(section => {
-                if (section.label) {
-                    const icons = { abstract: '📋', introduction: '📖', methods: '🔬', results: '📊', discussion: '💬', conclusion: '✅', other: '📄' };
-                    md += `## ${icons[section.key] || '📄'} ${section.label}\n\n`;
-                }
-                section.sentences.forEach(sentence => {
-                    const vi = translations[globalIdx] || '';
-                    md += `**${globalIdx + 1}.** ${sentence}\n`;
-                    if (vi) md += `> 🇻🇳 ${vi}\n`;
-                    md += `\n`;
-                    globalIdx++;
-                });
-                md += `---\n\n`;
-            });
-        } else {
-            allSents.forEach((sentence, i) => {
-                const vi = translations[i] || '';
-                md += `**${i + 1}.** ${sentence}\n`;
-                if (vi) md += `> 🇻🇳 ${vi}\n`;
-                md += `\n`;
-            });
+        if (allSents.length === 0) {
+            showToast('Không có nội dung để xuất', 'error');
+            return;
         }
 
-        const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `paperlens_notion_${new Date().toISOString().slice(0, 10)}.md`;
-        a.click();
-        URL.revokeObjectURL(url);
+        // Restore saved token if exists
+        const saved = localStorage.getItem('paperlens-notion-token');
+        if (saved) {
+            document.getElementById('notionTokenInput').value = saved;
+            document.getElementById('notionSaveToken').checked = true;
+        }
 
-        showToast('Đã xuất Markdown cho Notion! Vào Notion → Import → Markdown', 'success');
+        document.getElementById('notionStep1').style.display = '';
+        document.getElementById('notionStep2').style.display = 'none';
+        document.getElementById('notionError1').style.display = 'none';
+        document.getElementById('notionError2').style.display = 'none';
+        document.getElementById('notionSelectedInfo').style.display = 'none';
+        document.getElementById('notionExportBtn').disabled = true;
+        notionSelectedPageId = '';
+        notionSelectedPageName = '';
+
+        document.getElementById('notionModalOverlay').style.display = 'flex';
+        setTimeout(() => document.getElementById('notionTokenInput').focus(), 100);
     }
+
+    function closeNotionModal() {
+        document.getElementById('notionModalOverlay').style.display = 'none';
+    }
+
+    // Step 1 → Connect
+    async function notionConnect() {
+        const token = document.getElementById('notionTokenInput').value.trim();
+        if (!token.startsWith('secret_')) {
+            showNotionError(1, 'Token phải bắt đầu bằng "secret_". Hãy kiểm tra lại.');
+            return;
+        }
+        notionToken = token;
+
+        // Save token if checked
+        if (document.getElementById('notionSaveToken').checked) {
+            localStorage.setItem('paperlens-notion-token', token);
+        } else {
+            localStorage.removeItem('paperlens-notion-token');
+        }
+
+        setNotionLoading(1, true);
+        document.getElementById('notionError1').style.display = 'none';
+
+        try {
+            // Search all pages accessible to this integration
+            const data = await notionFetch('/search', {
+                method: 'POST',
+                body: JSON.stringify({
+                    filter: { value: 'page', property: 'object' },
+                    sort: { direction: 'descending', timestamp: 'last_edited_time' },
+                    page_size: 100,
+                }),
+            });
+
+            notionPages = (data.results || []).map(page => {
+                const emoji = page.icon?.emoji || '📄';
+                let name = 'Untitled';
+                if (page.properties?.title?.title?.[0]?.plain_text) {
+                    name = page.properties.title.title[0].plain_text;
+                } else if (page.properties?.Name?.title?.[0]?.plain_text) {
+                    name = page.properties.Name.title[0].plain_text;
+                }
+                return { id: page.id, name, emoji };
+            });
+
+            if (notionPages.length === 0) {
+                throw new Error('Không tìm thấy trang nào. Hãy đảm bảo bạn đã chia sẻ (Share) ít nhất một trang với integration PaperLens trong Notion.');
+            }
+
+            // Go to step 2
+            setNotionLoading(1, false);
+            document.getElementById('notionStep1').style.display = 'none';
+            document.getElementById('notionStep2').style.display = '';
+            notionFilteredPages = [...notionPages];
+            renderNotionPageList();
+            setTimeout(() => document.getElementById('notionPageSearch').focus(), 100);
+
+        } catch (err) {
+            setNotionLoading(1, false);
+            showNotionError(1, `❌ ${err.message}`);
+        }
+    }
+
+    function renderNotionPageList() {
+        const list = document.getElementById('notionPageList');
+        if (notionFilteredPages.length === 0) {
+            list.innerHTML = `<div class="notion-empty-pages"><strong>Không tìm thấy trang nào</strong>Hãy chia sẻ trang Notion với integration <em>PaperLens</em> trước.</div>`;
+            return;
+        }
+        list.innerHTML = notionFilteredPages.map(p => `
+            <div class="notion-page-item${p.id === notionSelectedPageId ? ' selected' : ''}" data-id="${p.id}" data-name="${escapeHtml(p.name)}">
+                <span class="notion-page-emoji">${p.emoji}</span>
+                <div class="notion-page-info">
+                    <div class="notion-page-name">${escapeHtml(p.name)}</div>
+                    <div class="notion-page-type">Notion Page</div>
+                </div>
+                ${p.id === notionSelectedPageId ? `<svg class="notion-page-check" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>` : ''}
+            </div>
+        `).join('');
+
+        list.querySelectorAll('.notion-page-item').forEach(el => {
+            el.addEventListener('click', () => {
+                notionSelectedPageId = el.dataset.id;
+                notionSelectedPageName = el.dataset.name;
+                document.getElementById('notionSelectedName').textContent = notionSelectedPageName;
+                document.getElementById('notionSelectedInfo').style.display = 'flex';
+                document.getElementById('notionExportBtn').disabled = false;
+                renderNotionPageList();
+            });
+        });
+    }
+
+    // Export to selected Notion page
+    async function doNotionExport() {
+        if (!notionSelectedPageId) return;
+
+        setNotionLoading(2, true);
+        document.getElementById('notionError2').style.display = 'none';
+
+        try {
+            const allSents = getAllSentences();
+            const isSectioned = sentences.length > 0 && typeof sentences[0] === 'object';
+            const date = new Date().toLocaleDateString('vi-VN');
+
+            // Build blocks
+            const blocks = [];
+
+            // Heading
+            blocks.push({
+                object: 'block', type: 'heading_1',
+                heading_1: { rich_text: [{ type: 'text', text: { content: `📄 PaperLens — Bản dịch bài báo` } }] },
+            });
+            blocks.push({
+                object: 'block', type: 'paragraph',
+                paragraph: { rich_text: [{ type: 'text', text: { content: `Xuất ngày ${date} • ${allSents.length} câu` }, annotations: { italic: true } }] },
+            });
+            blocks.push({ object: 'block', type: 'divider', divider: {} });
+
+            const sectionIcons = { abstract: '📋', introduction: '📖', methods: '🔬', results: '📊', discussion: '💬', conclusion: '✅', other: '📄' };
+
+            if (isSectioned) {
+                let globalIdx = 0;
+                sentences.forEach(section => {
+                    if (section.label) {
+                        const icon = sectionIcons[section.key] || '📄';
+                        blocks.push({
+                            object: 'block', type: 'heading_2',
+                            heading_2: { rich_text: [{ type: 'text', text: { content: `${icon} ${section.label}` } }] },
+                        });
+                    }
+                    section.sentences.forEach(sentence => {
+                        const vi = translations[globalIdx] || '';
+                        // English sentence
+                        blocks.push({
+                            object: 'block', type: 'paragraph',
+                            paragraph: {
+                                rich_text: [
+                                    { type: 'text', text: { content: `${globalIdx + 1}. ` }, annotations: { bold: true, color: 'gray' } },
+                                    { type: 'text', text: { content: sentence } },
+                                ],
+                            },
+                        });
+                        // Vietnamese translation (callout)
+                        if (vi) {
+                            blocks.push({
+                                object: 'block', type: 'callout',
+                                callout: {
+                                    rich_text: [{ type: 'text', text: { content: vi } }],
+                                    icon: { emoji: '🇻🇳' },
+                                    color: 'blue_background',
+                                },
+                            });
+                        }
+                        globalIdx++;
+                    });
+                    blocks.push({ object: 'block', type: 'divider', divider: {} });
+                });
+            } else {
+                allSents.forEach((sentence, i) => {
+                    const vi = translations[i] || '';
+                    blocks.push({
+                        object: 'block', type: 'paragraph',
+                        paragraph: {
+                            rich_text: [
+                                { type: 'text', text: { content: `${i + 1}. ` }, annotations: { bold: true, color: 'gray' } },
+                                { type: 'text', text: { content: sentence } },
+                            ],
+                        },
+                    });
+                    if (vi) {
+                        blocks.push({
+                            object: 'block', type: 'callout',
+                            callout: {
+                                rich_text: [{ type: 'text', text: { content: vi } }],
+                                icon: { emoji: '🇻🇳' },
+                                color: 'blue_background',
+                            },
+                        });
+                    }
+                });
+            }
+
+            // Notion API limit: max 100 blocks per request
+            const CHUNK = 100;
+            const firstChunk = blocks.slice(0, CHUNK);
+
+            // Create child page inside selected page
+            const newPage = await notionFetch('/pages', {
+                method: 'POST',
+                body: JSON.stringify({
+                    parent: { page_id: notionSelectedPageId },
+                    icon: { emoji: '📄' },
+                    properties: {
+                        title: { title: [{ type: 'text', text: { content: `PaperLens — ${date}` } }] },
+                    },
+                    children: firstChunk,
+                }),
+            });
+
+            // Append remaining blocks in chunks
+            for (let i = CHUNK; i < blocks.length; i += CHUNK) {
+                await notionFetch(`/blocks/${newPage.id}/children`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ children: blocks.slice(i, i + CHUNK) }),
+                });
+            }
+
+            setNotionLoading(2, false);
+            closeNotionModal();
+            showToast(`✅ Đã xuất sang Notion: "${notionSelectedPageName}" thành công!`, 'success');
+
+        } catch (err) {
+            setNotionLoading(2, false);
+            showNotionError(2, `❌ Lỗi: ${err.message}`);
+        }
+    }
+
+    function setNotionLoading(step, loading) {
+        if (step === 1) {
+            const btn = document.getElementById('notionConnectBtn');
+            document.getElementById('notionConnectBtnText').style.display = loading ? 'none' : '';
+            document.getElementById('notionConnectSpinner').style.display = loading ? '' : 'none';
+            btn.disabled = loading;
+        } else {
+            const btn = document.getElementById('notionExportBtn');
+            document.getElementById('notionExportBtnText').style.display = loading ? 'none' : '';
+            document.getElementById('notionExportSpinner').style.display = loading ? '' : 'none';
+            btn.disabled = loading;
+        }
+    }
+
+    function showNotionError(step, msg) {
+        const el = document.getElementById(`notionError${step}`);
+        el.textContent = msg;
+        el.style.display = '';
+    }
+
+    // --- Wire up modal events ---
+    function initNotionModal() {
+        document.getElementById('notionModalClose').addEventListener('click', closeNotionModal);
+        document.getElementById('notionCancelBtn1').addEventListener('click', closeNotionModal);
+        document.getElementById('notionBackBtn').addEventListener('click', () => {
+            document.getElementById('notionStep2').style.display = 'none';
+            document.getElementById('notionStep1').style.display = '';
+        });
+
+        document.getElementById('notionConnectBtn').addEventListener('click', notionConnect);
+        document.getElementById('notionTokenInput').addEventListener('keydown', e => {
+            if (e.key === 'Enter') notionConnect();
+        });
+
+        // Eye toggle
+        document.getElementById('notionEyeBtn').addEventListener('click', () => {
+            const inp = document.getElementById('notionTokenInput');
+            inp.type = inp.type === 'password' ? 'text' : 'password';
+        });
+
+        // Page search filter
+        document.getElementById('notionPageSearch').addEventListener('input', e => {
+            const q = e.target.value.toLowerCase();
+            notionFilteredPages = q ? notionPages.filter(p => p.name.toLowerCase().includes(q)) : [...notionPages];
+            renderNotionPageList();
+        });
+
+        document.getElementById('notionExportBtn').addEventListener('click', doNotionExport);
+
+        // Close on overlay click
+        document.getElementById('notionModalOverlay').addEventListener('click', e => {
+            if (e.target === document.getElementById('notionModalOverlay')) closeNotionModal();
+        });
+
+        // Escape key
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && document.getElementById('notionModalOverlay').style.display !== 'none') {
+                closeNotionModal();
+            }
+        });
+    }
+
+    initNotionModal();
 
     // ===== Export: Google Docs (HTML → Clipboard) =====
     async function exportToGoogleDocs() {
@@ -1094,7 +1389,7 @@
         els.pdfFileName.textContent = '';
     });
     els.exportBtn.addEventListener('click', exportToTxt);
-    document.getElementById('exportNotionBtn').addEventListener('click', exportToNotion);
+    document.getElementById('exportNotionBtn').addEventListener('click', openNotionModal);
     document.getElementById('exportGDocsBtn').addEventListener('click', exportToGoogleDocs);
     els.saveBtn.addEventListener('click', () => saveSession(currentSessionId));
     els.backBtn.addEventListener('click', showInput);

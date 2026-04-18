@@ -198,7 +198,81 @@
             </div>
         </section>
 
-        <!-- Footer -->
+        <!-- ===== NOTION INTEGRATION MODAL ===== -->
+    <div class="notion-modal-overlay" id="notionModalOverlay" style="display:none">
+        <div class="notion-modal" id="notionModal">
+            <div class="notion-modal-header">
+                <div class="notion-modal-title">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" style="color:#fff">
+                        <path d="M4.5 3h15A1.5 1.5 0 0 1 21 4.5v15A1.5 1.5 0 0 1 19.5 21h-15A1.5 1.5 0 0 1 3 19.5v-15A1.5 1.5 0 0 1 4.5 3zm0 1.5v15h15v-15h-15zM7 8h2v8H7zm4-2h2v10h-2zm4 4h2v6h-2z"/>
+                    </svg>
+                    <span>Xuất sang Notion</span>
+                </div>
+                <button class="notion-modal-close" id="notionModalClose">✕</button>
+            </div>
+
+            <!-- Step 1: Token -->
+            <div class="notion-step" id="notionStep1">
+                <div class="notion-step-badge">Bước 1 / 2</div>
+                <h3 class="notion-step-title">Kết nối Notion Integration</h3>
+                <p class="notion-step-desc">
+                    Dán <strong>Internal Integration Token</strong> (bắt đầu bằng <code>secret_</code>) của bạn vào đây.
+                    <a href="https://www.notion.so/profile/integrations/internal" target="_blank" class="notion-link">Lấy token →</a>
+                </p>
+                <div class="notion-input-group">
+                    <label>Integration Token</label>
+                    <div class="notion-token-wrapper">
+                        <input type="password" id="notionTokenInput" placeholder="secret_xxxxxxxxxxxxxxxxxxxx" class="notion-input" autocomplete="off">
+                        <button class="notion-eye-btn" id="notionEyeBtn" title="Hiện/ẩn token">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="eyeIcon">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <label style="margin-top:12px">
+                        <input type="checkbox" id="notionSaveToken" style="margin-right:6px">Lưu token vào trình duyệt (tiện lần sau)
+                    </label>
+                </div>
+                <div class="notion-btn-row">
+                    <button class="notion-btn-cancel" id="notionCancelBtn1">Hủy</button>
+                    <button class="notion-btn-primary" id="notionConnectBtn">
+                        <span id="notionConnectBtnText">Kết nối →</span>
+                        <span class="notion-spinner" id="notionConnectSpinner" style="display:none"></span>
+                    </button>
+                </div>
+                <div class="notion-error" id="notionError1" style="display:none"></div>
+            </div>
+
+            <!-- Step 2: Select Page -->
+            <div class="notion-step" id="notionStep2" style="display:none">
+                <div class="notion-step-badge">Bước 2 / 2</div>
+                <h3 class="notion-step-title">Chọn trang Notion</h3>
+                <p class="notion-step-desc">Chọn trang bạn muốn lưu bản dịch vào. Đảm bảo đã <strong>chia sẻ trang</strong> với integration <em>PaperLens</em>.</p>
+                <div class="notion-search-row">
+                    <input type="text" id="notionPageSearch" placeholder="🔍 Tìm tên trang..." class="notion-input">
+                </div>
+                <div class="notion-page-list" id="notionPageList">
+                    <div class="notion-loading-pages">Đang tải danh sách trang...</div>
+                </div>
+                <div class="notion-selected-info" id="notionSelectedInfo" style="display:none">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                    Đã chọn: <strong id="notionSelectedName"></strong>
+                </div>
+                <div class="notion-btn-row">
+                    <button class="notion-btn-cancel" id="notionBackBtn">← Quay lại</button>
+                    <button class="notion-btn-primary" id="notionExportBtn" disabled>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <span id="notionExportBtnText">Xuất sang Notion</span>
+                        <span class="notion-spinner" id="notionExportSpinner" style="display:none"></span>
+                    </button>
+                </div>
+                <div class="notion-error" id="notionError2" style="display:none"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
         <footer class="app-footer">
             <p>PaperLens © 2026 — Công cụ hỗ trợ nghiên cứu bài báo khoa học</p>
         </footer>
