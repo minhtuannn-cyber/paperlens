@@ -943,8 +943,8 @@
     // Step 1 → Connect
     async function notionConnect() {
         const token = document.getElementById('notionTokenInput').value.trim();
-        if (!token.startsWith('secret_')) {
-            showNotionError(1, 'Token phải bắt đầu bằng "secret_". Hãy kiểm tra lại.');
+        if (!token.startsWith('secret_') && !token.startsWith('ntn_')) {
+            showNotionError(1, 'Token không hợp lệ. Token phải bắt đầu bằng "secret_" hoặc "ntn_". Hãy kiểm tra lại.');
             return;
         }
         notionToken = token;
