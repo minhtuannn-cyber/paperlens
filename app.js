@@ -1456,4 +1456,499 @@
     initTheme();
     renderSavedSessions();
 
+    // =========================================================
+    // ===== TASK MANAGER MODULE =====
+    // =========================================================
+
+    // --- App-level tab switching ---
+    const appTabs = document.querySelectorAll('.app-tab');
+    appTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            appTabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            const panel = tab.dataset.appTab;
+            document.getElementById('translatePanel').style.display = panel === 'translate' ? '' : 'none';
+            document.getElementById('tasksPanel').style.display = panel === 'tasks' ? '' : 'none';
+            if (panel === 'tasks') {
+                renderTaskTable();
+                updateTaskDashboard();
+            }
+        });
+    });
+
+    // --- Task data ---
+    let tasks = JSON.parse(localStorage.getItem('paperlens-tasks') || '[]');
+    let taskFilter = 'all';
+    let taskSearchQ = '';
+    let taskSortMode = 'date-desc';
+    let editingTaskId = null;
+
+    // Notion task DB state
+    let taskNotionToken = localStorage.getItem('paperlens-notion-token') || '';
+    let taskNotionDbId = localStorage.getItem('paperlens-task-db-id') || '';
+    let taskNotionDbName = localStorage.getItem('paperlens-task-db-name') || '';
+    let taskDbs = [];
+    let taskDbsFiltered = [];
+    let taskSelectedDbId = '';
+    let taskSelectedDbName = '';
+
+    const STATUS_LABELS = {
+        todo:    '🔵 Chưa bắt đầu',
+        doing:   '🟡 Đang làm',
+        done:    '🟢 Hoàn thành',
+        blocked: '🔴 Bị chặn',
+    };
+
+    function saveTasks() {
+        localStorage.setItem('paperlens-tasks', JSON.stringify(tasks));
+    }
+
+    function genTaskId() {
+        return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    }
+
+    function getFilteredTasks() {
+        let list = [...tasks];
+        if (taskFilter !== 'all') list = list.filter(t => t.status === taskFilter);
+        if (taskSearchQ) {
+            const q = taskSearchQ.toLowerCase();
+            list = list.filter(t =>
+                (t.content || '').toLowerCase().includes(q) ||
+                (t.notes || '').toLowerCase().includes(q)
+            );
+        }
+        if (taskSortMode === 'date-desc') list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        else if (taskSortMode === 'date-asc') list.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+        else if (taskSortMode === 'status') {
+            const order = { doing: 0, blocked: 1, todo: 2, done: 3 };
+            list.sort((a, b) => (order[a.status] ?? 4) - (order[b.status] ?? 4));
+        }
+        return list;
+    }
+
+    function formatDate(d) {
+        if (!d) return '—';
+        const [y, m, day] = d.split('-');
+        return `${day}/${m}/${y}`;
+    }
+
+    function renderTaskTable() {
+        const body = document.getElementById('taskTableBody');
+        const empty = document.getElementById('taskEmpty');
+        const list = getFilteredTasks();
+
+        if (list.length === 0) {
+            body.innerHTML = '';
+            empty.style.display = 'flex';
+            return;
+        }
+        empty.style.display = 'none';
+
+        body.innerHTML = list.map((t, i) => `
+            <div class="task-row" data-id="${t.id}">
+                <div class="task-cell task-cell-num">${i + 1}</div>
+                <div class="task-cell task-cell-date">${formatDate(t.date)}</div>
+                <div class="task-cell task-cell-content">${escapeHtml(t.content || '')}</div>
+                <div class="task-cell task-cell-status">
+                    <span class="status-badge status-${t.status}">${STATUS_LABELS[t.status] || t.status}</span>
+                </div>
+                <div class="task-cell task-cell-notes">${escapeHtml(t.notes || '')}</div>
+                <div class="task-cell task-cell-actions">
+                    <button class="task-row-btn edit-task-btn" data-id="${t.id}" title="Sửa">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <button class="task-row-btn del del-task-btn" data-id="${t.id}" title="Xoá">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+        body.querySelectorAll('.edit-task-btn').forEach(btn =>
+            btn.addEventListener('click', () => openTaskModal(btn.dataset.id))
+        );
+        body.querySelectorAll('.del-task-btn').forEach(btn =>
+            btn.addEventListener('click', () => deleteTask(btn.dataset.id))
+        );
+    }
+
+    function updateTaskDashboard() {
+        const total = tasks.length;
+        const todo = tasks.filter(t => t.status === 'todo').length;
+        const doing = tasks.filter(t => t.status === 'doing').length;
+        const done = tasks.filter(t => t.status === 'done').length;
+        const blocked = tasks.filter(t => t.status === 'blocked').length;
+        const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+        document.getElementById('dashTotal').textContent = total;
+        document.getElementById('dashTodo').textContent = todo;
+        document.getElementById('dashDoing').textContent = doing;
+        document.getElementById('dashDone').textContent = done;
+        document.getElementById('dashBlocked').textContent = blocked;
+        document.getElementById('taskProgressBar').style.setProperty('--prog', pct + '%');
+        document.getElementById('taskProgressLabel').textContent = `${pct}% hoàn thành`;
+    }
+
+    function deleteTask(id) {
+        tasks = tasks.filter(t => t.id !== id);
+        saveTasks();
+        renderTaskTable();
+        updateTaskDashboard();
+        showToast('Đã xoá task', 'info');
+    }
+
+    // --- Task Modal ---
+    function openTaskModal(editId = null) {
+        editingTaskId = editId;
+        const modal = document.getElementById('taskModalOverlay');
+        document.getElementById('taskModalTitle').textContent = editId ? 'Sửa task' : 'Thêm task mới';
+
+        if (editId) {
+            const t = tasks.find(t => t.id === editId);
+            if (t) {
+                document.getElementById('taskFormDate').value = t.date || '';
+                document.getElementById('taskFormContent').value = t.content || '';
+                document.getElementById('taskFormStatus').value = t.status || 'todo';
+                document.getElementById('taskFormNotes').value = t.notes || '';
+            }
+        } else {
+            document.getElementById('taskFormDate').value = new Date().toISOString().slice(0, 10);
+            document.getElementById('taskFormContent').value = '';
+            document.getElementById('taskFormStatus').value = 'todo';
+            document.getElementById('taskFormNotes').value = '';
+        }
+        modal.style.display = 'flex';
+        setTimeout(() => document.getElementById('taskFormContent').focus(), 100);
+    }
+
+    function closeTaskModal() {
+        document.getElementById('taskModalOverlay').style.display = 'none';
+        editingTaskId = null;
+    }
+
+    function saveTaskForm() {
+        const content = document.getElementById('taskFormContent').value.trim();
+        if (!content) { showToast('Vui lòng nhập nội dung task', 'error'); return; }
+
+        const data = {
+            date: document.getElementById('taskFormDate').value,
+            content,
+            status: document.getElementById('taskFormStatus').value,
+            notes: document.getElementById('taskFormNotes').value.trim(),
+        };
+
+        if (editingTaskId) {
+            const idx = tasks.findIndex(t => t.id === editingTaskId);
+            if (idx >= 0) tasks[idx] = { ...tasks[idx], ...data };
+            showToast('Đã cập nhật task!', 'success');
+        } else {
+            tasks.unshift({ id: genTaskId(), ...data });
+            showToast('Đã thêm task mới!', 'success');
+        }
+
+        saveTasks();
+        closeTaskModal();
+        renderTaskTable();
+        updateTaskDashboard();
+    }
+
+    // Task modal events
+    document.getElementById('addTaskBtn').addEventListener('click', () => openTaskModal());
+    document.getElementById('taskModalClose').addEventListener('click', closeTaskModal);
+    document.getElementById('taskFormCancel').addEventListener('click', closeTaskModal);
+    document.getElementById('taskFormSave').addEventListener('click', saveTaskForm);
+    document.getElementById('taskModalOverlay').addEventListener('click', e => {
+        if (e.target === document.getElementById('taskModalOverlay')) closeTaskModal();
+    });
+
+    // Filter buttons
+    document.getElementById('taskFilters').addEventListener('click', e => {
+        const btn = e.target.closest('.filter-btn');
+        if (!btn) return;
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        taskFilter = btn.dataset.filter;
+        renderTaskTable();
+    });
+
+    // Search
+    document.getElementById('taskSearch').addEventListener('input', e => {
+        taskSearchQ = e.target.value;
+        renderTaskTable();
+    });
+
+    // Sort
+    document.getElementById('taskSort').addEventListener('change', e => {
+        taskSortMode = e.target.value;
+        renderTaskTable();
+    });
+
+    // ===== Task Notion Sync =====
+
+    function updateTaskNotionBar() {
+        const connected = !!taskNotionDbId;
+        const dot = document.getElementById('taskNotionDot');
+        const txt = document.getElementById('taskNotionStatusText');
+        const dbName = document.getElementById('taskNotionDbName');
+        const pullBtn = document.getElementById('taskPullBtn');
+        const pushBtn = document.getElementById('taskPushBtn');
+        const connectBtn = document.getElementById('taskNotionConnectBtn');
+
+        dot.classList.toggle('connected', connected);
+        txt.textContent = connected ? 'Kết nối Notion:' : 'Chưa kết nối Notion';
+        dbName.textContent = taskNotionDbName;
+        dbName.style.display = connected ? '' : 'none';
+        pullBtn.style.display = connected ? '' : 'none';
+        pushBtn.style.display = connected ? '' : 'none';
+        connectBtn.textContent = connected ? '⚙ Đổi database' : 'Kết nối Notion';
+    }
+
+    async function taskNotionFetch(path, options = {}) {
+        // Reuse same proxy logic as main Notion fetch but with task token
+        const tkn = taskNotionToken;
+        const proxies = [
+            p => `https://corsproxy.io/?url=${encodeURIComponent('https://api.notion.com/v1' + p)}`,
+            p => `https://proxy.cors.sh/https://api.notion.com/v1${p}`,
+            p => `https://api.allorigins.win/raw?url=${encodeURIComponent('https://api.notion.com/v1' + p)}`,
+        ];
+        const fetchOpts = {
+            ...options,
+            headers: {
+                'Authorization': `Bearer ${tkn}`,
+                'Notion-Version': '2022-06-28',
+                'Content-Type': 'application/json',
+                ...(options.headers || {}),
+            },
+        };
+        let lastErr = null;
+        for (const fn of proxies) {
+            try {
+                const r = await fetch(fn(path), fetchOpts);
+                if (!r.ok) {
+                    const e = await r.json().catch(() => ({}));
+                    throw new Error(e.message || `HTTP ${r.status}`);
+                }
+                return await r.json();
+            } catch (e) {
+                lastErr = e;
+                if (e.message && !['fetch','network','Failed'].some(w => e.message.includes(w))) throw e;
+            }
+        }
+        throw lastErr || new Error('Không thể kết nối Notion API');
+    }
+
+    // Open task Notion modal
+    function openTaskNotionModal() {
+        const savedTkn = localStorage.getItem('paperlens-notion-token') || '';
+        document.getElementById('taskNotionTokenInput').value = savedTkn;
+        document.getElementById('taskNotionSaveToken').checked = !!savedTkn;
+        document.getElementById('taskNotionStep1').style.display = '';
+        document.getElementById('taskNotionStep2').style.display = 'none';
+        document.getElementById('taskNotionErr1').style.display = 'none';
+        document.getElementById('taskNotionErr2').style.display = 'none';
+        document.getElementById('taskDbSelectedInfo').style.display = 'none';
+        document.getElementById('taskNotionConfirm').disabled = true;
+        taskSelectedDbId = '';
+        taskSelectedDbName = '';
+        document.getElementById('taskNotionModalOverlay').style.display = 'flex';
+    }
+
+    function closeTaskNotionModal() {
+        document.getElementById('taskNotionModalOverlay').style.display = 'none';
+    }
+
+    async function taskNotionConnect() {
+        const token = document.getElementById('taskNotionTokenInput').value.trim();
+        if (!token.startsWith('secret_') && !token.startsWith('ntn_')) {
+            document.getElementById('taskNotionErr1').textContent = 'Token không hợp lệ (phải bắt đầu bằng ntn_ hoặc secret_)';
+            document.getElementById('taskNotionErr1').style.display = '';
+            return;
+        }
+        taskNotionToken = token;
+        if (document.getElementById('taskNotionSaveToken').checked) {
+            localStorage.setItem('paperlens-notion-token', token);
+        }
+
+        document.getElementById('taskNotionConnectText').style.display = 'none';
+        document.getElementById('taskNotionConnectSpinner').style.display = '';
+        document.getElementById('taskNotionConnect').disabled = true;
+        document.getElementById('taskNotionErr1').style.display = 'none';
+
+        try {
+            // Search for databases
+            const data = await taskNotionFetch('/search', {
+                method: 'POST',
+                body: JSON.stringify({
+                    filter: { value: 'database', property: 'object' },
+                    sort: { direction: 'descending', timestamp: 'last_edited_time' },
+                    page_size: 100,
+                }),
+            });
+
+            taskDbs = (data.results || []).map(db => {
+                const emoji = db.icon?.emoji || '🗃️';
+                const name = db.title?.[0]?.plain_text || 'Untitled Database';
+                return { id: db.id, name, emoji };
+            });
+
+            document.getElementById('taskNotionConnectText').style.display = '';
+            document.getElementById('taskNotionConnectSpinner').style.display = 'none';
+            document.getElementById('taskNotionConnect').disabled = false;
+            document.getElementById('taskNotionStep1').style.display = 'none';
+            document.getElementById('taskNotionStep2').style.display = '';
+            taskDbsFiltered = [...taskDbs];
+            renderTaskDbList();
+            setTimeout(() => document.getElementById('taskDbSearch').focus(), 100);
+
+        } catch (err) {
+            document.getElementById('taskNotionConnectText').style.display = '';
+            document.getElementById('taskNotionConnectSpinner').style.display = 'none';
+            document.getElementById('taskNotionConnect').disabled = false;
+            document.getElementById('taskNotionErr1').textContent = '❌ ' + err.message;
+            document.getElementById('taskNotionErr1').style.display = '';
+        }
+    }
+
+    function renderTaskDbList() {
+        const list = document.getElementById('taskDbList');
+        if (taskDbsFiltered.length === 0) {
+            list.innerHTML = `<div class="notion-empty-pages"><strong>Không tìm thấy database nào</strong>Hãy share database Notion với integration PaperLense và thử lại.</div>`;
+            return;
+        }
+        list.innerHTML = taskDbsFiltered.map(db => `
+            <div class="notion-page-item${db.id === taskSelectedDbId ? ' selected' : ''}" data-id="${db.id}" data-name="${escapeHtml(db.name)}">
+                <span class="notion-page-emoji">${db.emoji}</span>
+                <div class="notion-page-info">
+                    <div class="notion-page-name">${escapeHtml(db.name)}</div>
+                    <div class="notion-page-type">Notion Database</div>
+                </div>
+                ${db.id === taskSelectedDbId ? `<svg class="notion-page-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>` : ''}
+            </div>
+        `).join('');
+
+        list.querySelectorAll('.notion-page-item').forEach(el => {
+            el.addEventListener('click', () => {
+                taskSelectedDbId = el.dataset.id;
+                taskSelectedDbName = el.dataset.name;
+                document.getElementById('taskDbSelectedName').textContent = taskSelectedDbName;
+                document.getElementById('taskDbSelectedInfo').style.display = 'flex';
+                document.getElementById('taskNotionConfirm').disabled = false;
+                renderTaskDbList();
+            });
+        });
+    }
+
+    async function confirmTaskNotionDb() {
+        if (!taskSelectedDbId) return;
+        taskNotionDbId = taskSelectedDbId;
+        taskNotionDbName = taskSelectedDbName;
+        localStorage.setItem('paperlens-task-db-id', taskNotionDbId);
+        localStorage.setItem('paperlens-task-db-name', taskNotionDbName);
+        closeTaskNotionModal();
+        updateTaskNotionBar();
+        showToast(`✅ Đã kết nối database "${taskNotionDbName}"!`, 'success');
+    }
+
+    // Pull tasks from Notion database
+    async function pullTasksFromNotion() {
+        if (!taskNotionDbId) return;
+        const pullBtn = document.getElementById('taskPullBtn');
+        pullBtn.disabled = true;
+        pullBtn.textContent = '⌛ Đang tải...';
+        try {
+            const data = await taskNotionFetch(`/databases/${taskNotionDbId}/query`, {
+                method: 'POST',
+                body: JSON.stringify({ page_size: 100 }),
+            });
+
+            const pulled = (data.results || []).map(page => {
+                const props = page.properties || {};
+                const getTitle = p => p?.title?.[0]?.plain_text || p?.rich_text?.[0]?.plain_text || '';
+                const getRichText = p => p?.rich_text?.[0]?.plain_text || '';
+                const getSelect = p => p?.select?.name?.toLowerCase() || 'todo';
+                const getDate = p => p?.date?.start || '';
+
+                return {
+                    id: page.id.replace(/-/g, ''),
+                    notionId: page.id,
+                    content: getTitle(props['Nội dung'] || props['Title'] || props['Name'] || Object.values(props).find(p => p.type === 'title')),
+                    status: getSelect(props['Tình hình'] || props['Status']),
+                    date: getDate(props['Ngày'] || props['Date']),
+                    notes: getRichText(props['Ghi chú'] || props['Notes']),
+                };
+            }).filter(t => t.content);
+
+            tasks = pulled;
+            saveTasks();
+            renderTaskTable();
+            updateTaskDashboard();
+            showToast(`✅ Đã tải ${pulled.length} tasks từ Notion!`, 'success');
+        } catch (err) {
+            showToast(`❌ Pull thất bại: ${err.message}`, 'error');
+        }
+        pullBtn.disabled = false;
+        pullBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Pull`;
+    }
+
+    // Push tasks to Notion database
+    async function pushTasksToNotion() {
+        if (!taskNotionDbId || tasks.length === 0) {
+            showToast('Không có tasks để push', 'error');
+            return;
+        }
+        const pushBtn = document.getElementById('taskPushBtn');
+        pushBtn.disabled = true;
+        pushBtn.textContent = '⌛ Đang push...';
+
+        const statusMap = { todo: 'Chưa bắt đầu', doing: 'Đang làm', done: 'Hoàn thành', blocked: 'Bị chặn' };
+        let success = 0;
+        for (const task of tasks) {
+            try {
+                const body = {
+                    parent: { database_id: taskNotionDbId },
+                    properties: {
+                        'Nội dung': { title: [{ text: { content: task.content || '' } }] },
+                        'Tình hình': { select: { name: statusMap[task.status] || 'Chưa bắt đầu' } },
+                        'Ghi chú': { rich_text: [{ text: { content: task.notes || '' } }] },
+                    },
+                };
+                if (task.date) body.properties['Ngày'] = { date: { start: task.date } };
+                await taskNotionFetch('/pages', { method: 'POST', body: JSON.stringify(body) });
+                success++;
+            } catch (e) { /* skip failed */ }
+        }
+        showToast(`✅ Đã push ${success}/${tasks.length} tasks lên Notion!`, 'success');
+        pushBtn.disabled = false;
+        pushBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Push`;
+    }
+
+    // Task Notion modal events
+    document.getElementById('taskNotionConnectBtn').addEventListener('click', openTaskNotionModal);
+    document.getElementById('taskNotionModalClose').addEventListener('click', closeTaskNotionModal);
+    document.getElementById('taskNotionCancel1').addEventListener('click', closeTaskNotionModal);
+    document.getElementById('taskNotionConnect').addEventListener('click', taskNotionConnect);
+    document.getElementById('taskNotionTokenInput').addEventListener('keydown', e => { if (e.key === 'Enter') taskNotionConnect(); });
+    document.getElementById('taskNotionEyeBtn').addEventListener('click', () => {
+        const inp = document.getElementById('taskNotionTokenInput');
+        inp.type = inp.type === 'password' ? 'text' : 'password';
+    });
+    document.getElementById('taskDbSearch').addEventListener('input', e => {
+        const q = e.target.value.toLowerCase();
+        taskDbsFiltered = q ? taskDbs.filter(d => d.name.toLowerCase().includes(q)) : [...taskDbs];
+        renderTaskDbList();
+    });
+    document.getElementById('taskNotionBack').addEventListener('click', () => {
+        document.getElementById('taskNotionStep2').style.display = 'none';
+        document.getElementById('taskNotionStep1').style.display = '';
+    });
+    document.getElementById('taskNotionConfirm').addEventListener('click', confirmTaskNotionDb);
+    document.getElementById('taskNotionModalOverlay').addEventListener('click', e => {
+        if (e.target === document.getElementById('taskNotionModalOverlay')) closeTaskNotionModal();
+    });
+    document.getElementById('taskPullBtn').addEventListener('click', pullTasksFromNotion);
+    document.getElementById('taskPushBtn').addEventListener('click', pushTasksToNotion);
+
+    // Init task notion bar state
+    updateTaskNotionBar();
+
 })();

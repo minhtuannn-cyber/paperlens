@@ -48,6 +48,21 @@
             </div>
         </header>
 
+        <!-- ===== APP NAV TABS ===== -->
+        <nav class="app-nav-tabs">
+            <button class="app-tab active" data-app-tab="translate" id="appTabTranslate">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                Dịch thuật
+            </button>
+            <button class="app-tab" data-app-tab="tasks" id="appTabTasks">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                Quản lý CV
+            </button>
+        </nav>
+
+        <!-- ===== TRANSLATE PANEL ===== -->
+        <div id="translatePanel">
+
         <!-- Input Section -->
         <section class="input-section" id="inputSection">
             <div class="input-card glass-card">
@@ -198,7 +213,217 @@
             </div>
         </section>
 
-        <!-- ===== NOTION INTEGRATION MODAL ===== -->
+        </div> <!-- /translatePanel -->
+
+        <!-- ===== TASK MANAGER PANEL ===== -->
+        <div id="tasksPanel" style="display:none">
+
+            <!-- Dashboard -->
+            <div class="dash-grid">
+                <div class="dash-card">
+                    <div class="dash-card-icon">📋</div>
+                    <div class="dash-card-val" id="dashTotal">0</div>
+                    <div class="dash-card-label">Tổng số</div>
+                </div>
+                <div class="dash-card dash-todo">
+                    <div class="dash-card-icon">🔵</div>
+                    <div class="dash-card-val" id="dashTodo">0</div>
+                    <div class="dash-card-label">Chưa bắt đầu</div>
+                </div>
+                <div class="dash-card dash-doing">
+                    <div class="dash-card-icon">🟡</div>
+                    <div class="dash-card-val" id="dashDoing">0</div>
+                    <div class="dash-card-label">Đang làm</div>
+                </div>
+                <div class="dash-card dash-done">
+                    <div class="dash-card-icon">🟢</div>
+                    <div class="dash-card-val" id="dashDone">0</div>
+                    <div class="dash-card-label">Hoàn thành</div>
+                </div>
+                <div class="dash-card dash-blocked">
+                    <div class="dash-card-icon">🔴</div>
+                    <div class="dash-card-val" id="dashBlocked">0</div>
+                    <div class="dash-card-label">Bị chặn</div>
+                </div>
+            </div>
+
+            <!-- Task progress bar -->
+            <div class="task-progress-container">
+                <div class="task-progress-bar" id="taskProgressBar"></div>
+                <span class="task-progress-label" id="taskProgressLabel">0% hoàn thành</span>
+            </div>
+
+            <!-- Toolbar -->
+            <div class="task-toolbar glass-card">
+                <div class="task-filters" id="taskFilters">
+                    <button class="filter-btn active" data-filter="all">Tất cả</button>
+                    <button class="filter-btn" data-filter="todo">🔵 Chưa bắt đầu</button>
+                    <button class="filter-btn" data-filter="doing">🟡 Đang làm</button>
+                    <button class="filter-btn" data-filter="done">🟢 Hoàn thành</button>
+                    <button class="filter-btn" data-filter="blocked">🔴 Bị chặn</button>
+                </div>
+                <div class="task-toolbar-right">
+                    <div class="task-search-wrap">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <input type="text" id="taskSearch" placeholder="Tìm kiếm..." class="task-search-input">
+                    </div>
+                    <select id="taskSort" class="task-sort-select">
+                        <option value="date-desc">Mới nhất</option>
+                        <option value="date-asc">Cũ nhất</option>
+                        <option value="status">Theo trạng thái</option>
+                    </select>
+                    <button class="btn-add-task" id="addTaskBtn">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Thêm task
+                    </button>
+                </div>
+            </div>
+
+            <!-- Task Table -->
+            <div class="task-table-wrap glass-card">
+                <div class="task-table-header">
+                    <div class="th th-num">#</div>
+                    <div class="th th-date">Ngày</div>
+                    <div class="th th-content">Nội dung / Ý tưởng</div>
+                    <div class="th th-status">Tình hình</div>
+                    <div class="th th-notes">Ghi chú</div>
+                    <div class="th th-actions"></div>
+                </div>
+                <div class="task-table-body" id="taskTableBody"></div>
+                <div class="task-empty" id="taskEmpty">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="12" y1="8" x2="12" y2="16"/></svg>
+                    <p>Chưa có task nào. Bấm <strong>Thêm task</strong> để bắt đầu!</p>
+                </div>
+            </div>
+
+            <!-- Notion Sync Bar -->
+            <div class="task-notion-bar glass-card">
+                <div class="task-notion-left">
+                    <div class="task-notion-status-dot" id="taskNotionDot"></div>
+                    <span id="taskNotionStatusText">Chưa kết nối Notion</span>
+                    <span class="task-notion-db" id="taskNotionDbName" style="display:none"></span>
+                </div>
+                <div class="task-notion-actions">
+                    <button class="btn-small" id="taskPullBtn" style="display:none" title="Tải tasks từ Notion về">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Pull
+                    </button>
+                    <button class="btn-small" id="taskPushBtn" style="display:none" title="Đẩy tasks lên Notion">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        Push
+                    </button>
+                    <button class="btn-small btn-notion" id="taskNotionConnectBtn">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+                        Kết nối Notion
+                    </button>
+                </div>
+            </div>
+
+        </div> <!-- /tasksPanel -->
+
+        <!-- ===== TASK ADD/EDIT MODAL ===== -->
+        <div class="task-modal-overlay" id="taskModalOverlay" style="display:none">
+            <div class="task-modal">
+                <div class="task-modal-header">
+                    <h3 id="taskModalTitle">Thêm task mới</h3>
+                    <button class="notion-modal-close" id="taskModalClose">✕</button>
+                </div>
+                <div class="task-modal-body">
+                    <div class="task-form-group">
+                        <label>Ngày</label>
+                        <input type="date" id="taskFormDate" class="task-form-input">
+                    </div>
+                    <div class="task-form-group">
+                        <label>Nội dung / Ý tưởng <span class="required">*</span></label>
+                        <textarea id="taskFormContent" class="task-form-textarea" placeholder="Mô tả công việc hoặc ý tưởng..." rows="3"></textarea>
+                    </div>
+                    <div class="task-form-group">
+                        <label>Tình hình</label>
+                        <select id="taskFormStatus" class="task-form-select">
+                            <option value="todo">🔵 Chưa bắt đầu</option>
+                            <option value="doing">🟡 Đang làm</option>
+                            <option value="done">🟢 Hoàn thành</option>
+                            <option value="blocked">🔴 Bị chặn</option>
+                        </select>
+                    </div>
+                    <div class="task-form-group">
+                        <label>Ghi chú</label>
+                        <textarea id="taskFormNotes" class="task-form-textarea" placeholder="Ghi chú thêm (tuỳ chọn)..." rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="task-modal-footer">
+                    <button class="notion-btn-cancel" id="taskFormCancel">Hủy</button>
+                    <button class="notion-btn-primary" id="taskFormSave">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        Lưu task
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== TASK NOTION CONNECT MODAL ===== -->
+        <div class="task-modal-overlay" id="taskNotionModalOverlay" style="display:none">
+            <div class="task-modal">
+                <div class="task-modal-header">
+                    <h3>Kết nối Notion cho Quản lý CV</h3>
+                    <button class="notion-modal-close" id="taskNotionModalClose">✕</button>
+                </div>
+
+                <!-- Step 1: Token -->
+                <div id="taskNotionStep1">
+                    <div class="task-modal-body">
+                        <p class="notion-step-desc">Dán <strong>Integration Token</strong> (<code>ntn_</code> hoặc <code>secret_</code>) để kết nối Notion.
+                            <a href="https://www.notion.so/profile/integrations/internal" target="_blank" class="notion-link">Lấy token →</a>
+                        </p>
+                        <div class="task-form-group">
+                            <label>Integration Token</label>
+                            <div class="notion-token-wrapper">
+                                <input type="password" id="taskNotionTokenInput" placeholder="ntn_xxxx..." class="task-form-input" style="padding-right:44px;font-family:'JetBrains Mono',monospace;font-size:0.82rem">
+                                <button class="notion-eye-btn" id="taskNotionEyeBtn">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                </button>
+                            </div>
+                            <label style="margin-top:10px;font-size:0.82rem;color:var(--text-secondary);display:flex;align-items:center;gap:6px">
+                                <input type="checkbox" id="taskNotionSaveToken"> Lưu token vào trình duyệt
+                            </label>
+                        </div>
+                        <div class="notion-error" id="taskNotionErr1" style="display:none"></div>
+                    </div>
+                    <div class="task-modal-footer">
+                        <button class="notion-btn-cancel" id="taskNotionCancel1">Hủy</button>
+                        <button class="notion-btn-primary" id="taskNotionConnect">
+                            <span id="taskNotionConnectText">Kết nối →</span>
+                            <span class="notion-spinner" id="taskNotionConnectSpinner" style="display:none"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 2: Select Database -->
+                <div id="taskNotionStep2" style="display:none">
+                    <div class="task-modal-body">
+                        <p class="notion-step-desc">Chọn <strong>Database Notion</strong> để đồng bộ tasks. Database cần được <strong>share</strong> với integration PaperLense.</p>
+                        <input type="text" id="taskDbSearch" placeholder="🔍 Tìm database..." class="task-form-input" style="margin-bottom:10px">
+                        <div class="notion-page-list" id="taskDbList">
+                            <div class="notion-loading-pages">Đang tải databases...</div>
+                        </div>
+                        <div class="notion-selected-info" id="taskDbSelectedInfo" style="display:none">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                            Đã chọn: <strong id="taskDbSelectedName"></strong>
+                        </div>
+                        <div class="notion-error" id="taskNotionErr2" style="display:none"></div>
+                    </div>
+                    <div class="task-modal-footer">
+                        <button class="notion-btn-cancel" id="taskNotionBack">← Quay lại</button>
+                        <button class="notion-btn-primary" id="taskNotionConfirm" disabled>
+                            <span id="taskNotionConfirmText">Xác nhận</span>
+                            <span class="notion-spinner" id="taskNotionConfirmSpinner" style="display:none"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== NOTION INTEGRATION MODAL (Dịch thuật) ===== -->
     <div class="notion-modal-overlay" id="notionModalOverlay" style="display:none">
         <div class="notion-modal" id="notionModal">
             <div class="notion-modal-header">
