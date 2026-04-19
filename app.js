@@ -54,6 +54,25 @@
     let sentences = [];
     let translations = {};
     let currentSessionId = null;
+    let currentArticleTitle = '';
+
+    // ===== Extract Article Title =====
+    function extractArticleTitle(rawText) {
+        if (!rawText) return '';
+        const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        // Skip very short lines (page numbers, etc)
+        const sectionHeaders = /^(abstract|introduction|methods?|results?|discussion|conclusion|references?|background|materials?)/i;
+        const candidates = [];
+        for (const line of lines) {
+            if (line.length < 8) continue;             // too short
+            if (sectionHeaders.test(line)) break;      // stop at first section
+            if (/^\d/.test(line)) continue;            // starts with number
+            candidates.push(line);
+            if (candidates.length >= 3) break;         // take at most 3 lines
+        }
+        const title = candidates.join(' ').replace(/\s+/g, ' ').trim();
+        return title.length > 120 ? title.substring(0, 120) + '...' : title;
+    }
 
     // ===== Toast Notifications =====
     function showToast(message, type = 'info') {
@@ -1062,14 +1081,19 @@
             // Build blocks
             const blocks = [];
 
-            // Heading
+            // Heading — use article title if available
+            const pageTitle = currentArticleTitle || `PaperLens — ${date}`;
             blocks.push({
                 object: 'block', type: 'heading_1',
-                heading_1: { rich_text: [{ type: 'text', text: { content: `📄 PaperLens — Bản dịch bài báo` } }] },
+                heading_1: { rich_text: [{ type: 'text', text: { content: `📄 ${pageTitle}` } }] },
             });
             blocks.push({
-                object: 'block', type: 'paragraph',
-                paragraph: { rich_text: [{ type: 'text', text: { content: `Xuất ngày ${date} • ${allSents.length} câu` }, annotations: { italic: true } }] },
+                object: 'block', type: 'callout',
+                callout: {
+                    rich_text: [{ type: 'text', text: { content: `Xuất từ PaperLens ngày ${date} • ${allSents.length} câu` } }],
+                    icon: { emoji: '📅' },
+                    color: 'gray_background',
+                },
             });
             blocks.push({ object: 'block', type: 'divider', divider: {} });
 
@@ -1148,7 +1172,7 @@
                     parent: { page_id: notionSelectedPageId },
                     icon: { emoji: '📄' },
                     properties: {
-                        title: { title: [{ type: 'text', text: { content: `PaperLens — ${date}` } }] },
+                        title: { title: [{ type: 'text', text: { content: currentArticleTitle || `PaperLens — ${date}` } }] },
                     },
                     children: firstChunk,
                 }),
@@ -1372,6 +1396,7 @@
         sentences = splitIntoSentences(text);
         translations = {};
         currentSessionId = generateId();
+        currentArticleTitle = extractArticleTitle(text);
 
         showLoading(false);
 
